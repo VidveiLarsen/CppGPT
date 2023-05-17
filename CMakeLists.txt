@@ -1,7 +1,4 @@
-﻿# CMakeList.txt : CMake project for CppGPT, include source and define
-# project specific logic here.
-#
-cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required (VERSION 3.11)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -11,26 +8,44 @@ endif()
 
 
 project ("CppGPT")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set (CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/../Libtorch/libtorch-win-shared-with-deps-debug-2.0.1+cu117/libtorch")
+if (MSVC)
+  # if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # unsure how to properly do this, this does at least not work
+  set (CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Libtorch/libtorch-win-shared-with-deps-debug-2.0.1+cu117/libtorch")
+  # else()
+  # set (CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/Libtorch/libtorch-win-shared-with-deps-2.0.1+cu117/libtorch")
+  # endif()
 else()
-  set (CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/../Libtorch/libtorch-win-shared-with-deps-2.0.1+cu117/libtorch")
-endif()
+  set (CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/../Libtorch/libtorch")
+endif(MSVC)
 
-
-message("${CMAKE_PREFIX_PATH}")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-# Add source to this project's executable.
+include(FetchContent)
+FetchContent_Declare(
+  spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG        57a9fd0841f00e92b478a07fef62636d7be612a8 # release-1.10.0
+)
+
+FetchContent_MakeAvailable(spdlog)
+
+if (MSVC)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -W4")
+endif(MSVC)
+
 add_executable (CppGPT "CppGPT.cpp" "CppGPT.h")
-target_link_libraries(CppGPT "${TORCH_LIBRARIES}")
-target_include_directories(CppGPT PUBLIC "${TORCH_INCLUDE_DIRS}")
-message("${TORCH_INCLUDE_DIRS}")
-set_property(TARGET CppGPT PROPERTY CXX_STANDARD 14)
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET CppGPT PROPERTY CXX_STANDARD 20)
-endif()
+set(SPDLOG_FMT_EXTERNAL ON)
+target_link_libraries(CppGPT 
+                            PRIVATE "${TORCH_LIBRARIES}"
+                            PRIVATE spdlog::spdlog $<$<BOOL:${MINGW}>:ws2_32>)
+target_include_directories(CppGPT 
+                                  PUBLIC "${TORCH_INCLUDE_DIRS}"
+                                  PRIVATE "${SPDLOG_INCLUDE_DIRS}")
+
+set_property(TARGET CppGPT PROPERTY CXX_STANDARD 20)
+
 if (MSVC)
   file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
   add_custom_command(TARGET CppGPT
@@ -39,4 +54,3 @@ if (MSVC)
                      ${TORCH_DLLS}
                      $<TARGET_FILE_DIR:CppGPT>)
 endif (MSVC)
-# TODO: Add tests and install targets if needed.
